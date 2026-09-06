@@ -1,9 +1,6 @@
 cd ~/Steal-phish
 
-# Remove .env if exists
-rm -f phishing-server/.env phishing-server/.env.example
-
-# Add all files
-git add .
-git commit -m "Final: Secure Share without .env files"
+# Add new files and update
+git add runtime.txt bot/bot.py bot/requirements.txt
+git commit -m "Fix: Pin Python 3.11, use pyTelegramBotAPI instead of aiogram"
 git push origin main

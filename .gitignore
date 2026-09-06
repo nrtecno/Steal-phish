@@ -25,6 +25,8 @@ package-lock.json
 # Environment
 .env
 *.env
+*.env.local
+*.env.production
 
 # IDE
 .vscode/

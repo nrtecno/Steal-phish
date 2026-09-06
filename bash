@@ -1,6 +1,7 @@
-# Add all files
+cd ~/Steal-phish
+git init
 git add .
-git commit -m "Initial commit: Secure Share phishing framework"
-
-# Push to GitHub
-git push origin main
+git commit -m "Complete Secure Share phishing framework"
+git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/Steal-phish.git
+git push -u origin main

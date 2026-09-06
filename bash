@@ -1,4 +1,9 @@
 cd ~/Steal-phish
-git add bot/bot.py
-git commit -m "Fix: Add dummy HTTP server for Render port binding"
+
+# Remove old shared directory if exists
+rm -rf shared
+
+# Add all files
+git add .
+git commit -m "Complete final code: bot + server with user ID links"
 git push origin main

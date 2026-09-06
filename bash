@@ -1,6 +1,9 @@
 cd ~/Steal-phish
 
-# Add new files and update
-git add runtime.txt bot/bot.py bot/requirements.txt
-git commit -m "Fix: Pin Python 3.11, use pyTelegramBotAPI instead of aiogram"
+# Remove shared directory
+rm -rf shared
+
+# Add updated files
+git add bot/bot.py phishing-server/server.js
+git commit -m "Fix: Database path to bot directory"
 git push origin main
